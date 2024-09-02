@@ -7,6 +7,7 @@ import {DecentralizedStablecoin} from "src/DecentralizedStablecoin.sol";
 import {DSCEngine} from "src/DSCEngine.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract DSCEngineTest is Test {
     DeployDsc public deployer;
@@ -25,6 +26,7 @@ contract DSCEngineTest is Test {
     address public USER = makeAddr("USER");
     uint256 public constant AMOUNT_COLLATERAL = 10 ether;
     uint256 public constant STARTING_ERC20_BALANCE = 1000 ether;
+    uint256 public constant DSC_MINT_AMOUNT = 1000 ether;
 
     function setUp() public {
         deployer = new DeployDsc();
@@ -86,6 +88,20 @@ contract DSCEngineTest is Test {
         ERC20Mock randMockToken = new ERC20Mock();
         vm.expectRevert(DSCEngine.DSCEngine__NotAllowedToken.selector);
         dse.depositCollateral(address(randMockToken), AMOUNT_COLLATERAL);
+    }
+
+    function testDepositCollateralRevertsOnFailedTransferFrom() public {
+        vm.startPrank(USER);
+        ERC20Mock(weth).approve(address(dse), AMOUNT_COLLATERAL);
+
+        vm.mockCall(
+            address(weth),
+            abi.encodeWithSelector(IERC20.transferFrom.selector, USER, address(dse), AMOUNT_COLLATERAL),
+            abi.encode(false)
+        );
+        vm.expectRevert(DSCEngine.DSCEngine__TransferFromFailed.selector);
+        dse.depositCollateral(weth, AMOUNT_COLLATERAL);
+        vm.stopPrank();
     }
 
     modifier depositCollateral() {
